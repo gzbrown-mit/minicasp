@@ -27,13 +27,28 @@ def main():
     # model seed (SGD randomness)
     ap.add_argument("--model_seed", type=int, default=0)
 
-    # model hyperparams (optional knobs)
+    # features / baseline hyperparams
     ap.add_argument("--fp_radius", type=int, default=2)
     ap.add_argument("--n_bits", type=int, default=2048)
     ap.add_argument("--max_iter", type=int, default=25)
 
+    # pluggable model
+    ap.add_argument("--model_type", default="sgd",
+                    choices=["sgd", "mlp", "mlp_torch", "mlp_sklearn"])
+    ap.add_argument("--mlp_hidden", default="1024,1024",
+                    help="Comma-separated hidden sizes, e.g. 1024,1024")
+    ap.add_argument("--mlp_epochs", type=int, default=8)
+    ap.add_argument("--mlp_batch_size", type=int, default=256)
+    ap.add_argument("--mlp_lr", type=float, default=1e-3)
+    ap.add_argument("--mlp_dropout", type=float, default=0.1)
+
     args = ap.parse_args()
     os.makedirs(args.run_dir, exist_ok=True)
+
+    # Parse hidden layer sizes EARLY so it's always defined
+    hidden = tuple(int(x) for x in args.mlp_hidden.split(",") if x.strip())
+    if args.model_type != "sgd" and len(hidden) == 0:
+        raise ValueError("--mlp_hidden must have at least one layer size for MLP models.")
 
     # Copy templates cache into the run directory so step2 only needs run_dir
     templates_out = os.path.join(args.run_dir, "templates.json.gz")
@@ -61,6 +76,12 @@ def main():
         "fp_radius": args.fp_radius,
         "n_bits": args.n_bits,
         "max_iter": args.max_iter,
+        "model_type": args.model_type,
+        "mlp_hidden": list(hidden),
+        "mlp_epochs": args.mlp_epochs,
+        "mlp_batch_size": args.mlp_batch_size,
+        "mlp_lr": args.mlp_lr,
+        "mlp_dropout": args.mlp_dropout,
         "n_pairs_total": len(X),
         "n_pairs_train": len(Xtr),
         "n_pairs_test": len(Xte),
@@ -71,7 +92,13 @@ def main():
         fp_radius=args.fp_radius,
         n_bits=args.n_bits,
         random_state=args.model_seed,
-        max_iter=args.max_iter,
+        max_iter=args.max_iter,          # used by SGD
+        model_type=args.model_type,
+        mlp_hidden=hidden,
+        mlp_epochs=args.mlp_epochs,
+        mlp_batch_size=args.mlp_batch_size,
+        mlp_lr=args.mlp_lr,
+        mlp_dropout=args.mlp_dropout,
     )
 
     model_path = os.path.join(args.run_dir, "model.joblib")
@@ -95,6 +122,7 @@ def main():
     print("Model:", model_path)
     print("Templates:", templates_out)
     print("Split mode:", args.split_mode)
+    print("Model type:", args.model_type)
     print("Train pairs:", len(Xtr), "Test pairs:", len(Xte))
 
 if __name__ == "__main__":

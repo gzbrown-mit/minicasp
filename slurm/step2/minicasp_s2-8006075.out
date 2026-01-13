@@ -1,0 +1,10 @@
+Using RUN_DIR=/home/gzbrown/minicasp/results/runs/260113-123941
+Loading model: /home/gzbrown/minicasp/results/runs/260113-123941/model.joblib
+Loaded model_type: unknown
+Loading templates: /home/gzbrown/minicasp/results/runs/260113-123941/templates.json.gz
+Loading test pairs: /home/gzbrown/minicasp/results/runs/260113-123941/test_pairs.jsonl.gz
+Loading buyables (cached if present)...
+Buyables loaded: 329384
+Saved audit: /home/gzbrown/minicasp/results/runs/260113-123941/audit/audit_260113-124352.json
+Success: 1 / 100 = 0.01
+STEP2_DONE RUN_DIR=/home/gzbrown/minicasp/results/runs/260113-123941 EXPECT_MODEL_TYPE=

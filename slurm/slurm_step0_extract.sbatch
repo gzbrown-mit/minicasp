@@ -6,7 +6,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --output=/home/gzbrown/minicasp/slurm/slurm-step0-%j.out
+#SBATCH --output=/home/gzbrown/minicasp/slurm/step0/%x-%j.out
+
 
 set -e
 source /home/gzbrown/miniconda3/etc/profile.d/conda.sh

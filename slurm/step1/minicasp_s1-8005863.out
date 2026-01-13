@@ -1,0 +1,11 @@
+Using MODEL_TYPE=sgd
+Using SPLIT_TYPE=random_group
+/home/gzbrown/miniconda3/envs/higherlev_retro/lib/python3.10/site-packages/sklearn/linear_model/_stochastic_gradient.py:726: ConvergenceWarning: Maximum number of iteration reached before convergence. Consider increasing max_iter to improve the fit.
+  warnings.warn(
+Saved run_dir: /home/gzbrown/minicasp/results/runs/260113-123941
+Model: /home/gzbrown/minicasp/results/runs/260113-123941/model.joblib
+Templates: /home/gzbrown/minicasp/results/runs/260113-123941/templates.json.gz
+Split mode: random_group
+Model type: sgd
+Train pairs: 22042 Test pairs: 5494
+STEP1_DONE RUN_DIR=/home/gzbrown/minicasp/results/runs/260113-123941 MODEL_TYPE=sgd

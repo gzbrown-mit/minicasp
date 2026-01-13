@@ -6,7 +6,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --output=/home/gzbrown/minicasp/slurm/slurm-step2-%j.out
+#SBATCH --output=/home/gzbrown/minicasp/slurm/step2/%x-%j.out
+
 
 set -e
 source /home/gzbrown/miniconda3/etc/profile.d/conda.sh
@@ -18,6 +19,9 @@ export PYTHONPATH="$PWD:$PYTHONPATH"
 RUN_DIR="$(ls -td /home/gzbrown/minicasp/results/runs/* | head -n 1)"
 echo "Using RUN_DIR=$RUN_DIR"
 
+# check to make sure model trained and run are the same
+EXPECT_MODEL_TYPE=""
+
 python -m minicasp.scripts.step2_audit \
   --run_dir "$RUN_DIR" \
   --targets_n 100 \
@@ -28,6 +32,7 @@ python -m minicasp.scripts.step2_audit \
   --max_outcomes_per_template 25 \
   --time_limit_s 10.0 \
   --buyables_jsonl_gz /home/gzbrown/minicasp/data/buyables/buyables.jsonl.gz \
-  --buyables_cache_txt_gz /home/gzbrown/minicasp/data/buyables/buyables_smiles.txt.gz
+  --buyables_cache_txt_gz /home/gzbrown/minicasp/data/buyables/buyables_smiles.txt.gz \
+  --expect_model_type "$EXPECT_MODEL_TYPE"
 
-echo "STEP2_DONE RUN_DIR=$RUN_DIR"
+echo "STEP2_DONE RUN_DIR=$RUN_DIR EXPECT_MODEL_TYPE=$EXPECT_MODEL_TYPE"

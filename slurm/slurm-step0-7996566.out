@@ -1,6 +1,0 @@
-WARNING:root:Template extraction returned None for rxn: [CH3:1][CH2:2][C@:3]1([OH:4])[C@H:5]([C:6]([O:7][CH3:8])=[O:9])[c:10]2[cH:11][c:12]3[c:13]([c:14]([OH:15])[c:16]2[C@@H:17]([O:18][C@@H:32]2[O:33][C@@H:34]([CH3:35])[C@@H:36]([O:37][C@@H:38]4[O:39][C@@
-WARNING:root:Template extraction returned None for rxn: [CH2:1]([OH:2])[C@H:3]1[O:4][C@H:8]([O:13][C@H:14]2[C@H:15]([OH:16])[C@@H:17]([OH:18])[C@@H:19]([O:20][C@H:21]3[C@H:22]([OH:23])[C@@H:24]([OH:25])[C@@H:26]([O:27][C@H:28]4[C@H:29]([OH:30])[C@@H:31]([O
-WARNING:root:Template extraction returned None for rxn: [CH3:1][CH2:2][C@:3]1([OH:4])[C@H:5]([C:6]([O:7][CH3:8])=[O:9])[c:10]2[cH:11][c:12]3[c:13]([c:14]([OH:15])[c:16]2[C@@H:17]([O:18][C@@H:32]2[O:33][C@@H:34]([CH3:35])[C@@H:36]([O:37][C@@H:38]4[O:39][C@@
-WARNING:root:Template extraction returned None for rxn: [CH2:2]([CH2:3][CH2:4][CH2:5][CH2:6][CH2:7][O:8][C@H:9]1[CH2:10][CH2:11][C@@:12]2([CH3:13])[C:14](=[CH:15][CH2:16][C@@H:17]3[C@@H:18]2[CH2:19][CH2:20][C@@:21]2([CH3:22])[C@H:23]3[CH2:24][CH2:25][C@@H:
-Saved templates: /home/gzbrown/minicasp/results/templates/templates_r1_min5.json.gz n_templates= 1471
-Saved pairs: /home/gzbrown/minicasp/results/templates/pairs_r1_min5.jsonl.gz n_pairs= 27536
