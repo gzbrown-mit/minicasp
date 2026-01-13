@@ -1,0 +1,6 @@
+/home/gzbrown/miniconda3/envs/higherlev_retro/lib/python3.10/site-packages/sklearn/linear_model/_stochastic_gradient.py:726: ConvergenceWarning: Maximum number of iteration reached before convergence. Consider increasing max_iter to improve the fit.
+  warnings.warn(
+Saved: /home/gzbrown/minicasp/results/runs/260113-111013
+Split mode: ordered_group
+Train pairs: 22265 Test pairs: 5271
+STEP1_DONE RUN_DIR=/home/gzbrown/minicasp/results/runs/260113-111013

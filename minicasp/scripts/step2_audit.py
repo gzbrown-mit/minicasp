@@ -1,96 +1,68 @@
-
-# =========================
-# FILE: minicasp/scripts/step2_audit.py
-# =========================
-from __future__ import annotations
-
 import argparse
-import json
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Set
+import random
 
 from minicasp.utils import (
-    SearchConfig,
-    TemplateModel,
-    TemplateRecord,
+    load_templates_cache,
+    load_pairs_jsonl_gz,
+    load_model_joblib,
+    load_buyables_cached,
     audit_targets,
-    load_askcos_buyables_jsonl_gz,
-    load_reaction_records_csv,
-    sample_targets_from_products,
     save_json,
-    setup_logger,
+    SearchConfig,
 )
 
+def main():
+    ap = argparse.ArgumentParser()
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    ap.add_argument("--run_dir", required=True,
+                    help="e.g. /home/gzbrown/minicasp/results/runs/YYMMDD-HHMMSS")
+    ap.add_argument("--targets_n", type=int, default=100)
+    ap.add_argument("--seed", type=int, default=0)
 
+    # Search params
+    ap.add_argument("--max_depth", type=int, default=6)
+    ap.add_argument("--max_expansions", type=int, default=300)
+    ap.add_argument("--topk_templates", type=int, default=25)
+    ap.add_argument("--max_outcomes_per_template", type=int, default=25)
+    ap.add_argument("--time_limit_s", type=float, default=10.0)
 
-def _load_artifacts(artifacts_dir: Path) -> tuple[TemplateModel, list[TemplateRecord], Dict[str, Any]]:
-    # Templates
-    templates_json = artifacts_dir / "templates.json"
-    data = json.loads(templates_json.read_text())
-    templates = [TemplateRecord(**t) for t in data["templates"]]
+    # Buyables (use your copied files in minicasp)
+    ap.add_argument("--buyables_jsonl_gz", default="/home/gzbrown/minicasp/data/buyables/buyables.jsonl.gz")
+    ap.add_argument("--buyables_cache_txt_gz", default="/home/gzbrown/minicasp/data/buyables/buyables_smiles.txt.gz")
 
-    # Model
-    import joblib  # type: ignore
+    args = ap.parse_args()
+    run_dir = args.run_dir
 
-    model_blob = joblib.load(artifacts_dir / "template_model.joblib")
-    model = TemplateModel(
-        clf=model_blob["clf"],
-        label_encoder=model_blob["label_encoder"],
-        n_bits=int(model_blob["n_bits"]),
-        fp_radius=int(model_blob["fp_radius"]),
-    )
+    model_path = os.path.join(run_dir, "model.joblib")
+    templates_path = os.path.join(run_dir, "templates.json.gz")
+    test_pairs_path = os.path.join(run_dir, "test_pairs.jsonl.gz")
 
-    meta = json.loads((artifacts_dir / "meta.json").read_text())
-    return model, templates, meta
+    for p in (model_path, templates_path, test_pairs_path):
+        if not os.path.exists(p):
+            raise FileNotFoundError(f"Missing required file: {p}")
 
+    print("Loading model:", model_path)
+    model = load_model_joblib(model_path)
 
-def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--csv", required=True, help="CSV with USPTO reactions")
-    p.add_argument("--rxn_col", default="rxn_smiles")
-    p.add_argument("--train_limit", type=int, default=50_000, help="Must match (or be <=) step1 limit")
-    p.add_argument("--targets_n", type=int, default=100)
-    p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--run_id", required=True, help="Run id produced by step1")
-    p.add_argument(
-        "--buyables",
-        default="/home/gzbrown/higherlev_retro/ASKCOSv2/askcos2_core/buyables/buyables.jsonl.gz",
-        help="ASKCOS buyables jsonl.gz",
-    )
+    print("Loading templates:", templates_path)
+    templates = load_templates_cache(templates_path)
 
-    # Search knobs
-    p.add_argument("--max_depth", type=int, default=6)
-    p.add_argument("--max_expansions", type=int, default=300)
-    p.add_argument("--topk_templates", type=int, default=25)
-    p.add_argument("--max_outcomes_per_template", type=int, default=25)
-    p.add_argument("--time_limit_s", type=float, default=10.0)
+    print("Loading test pairs:", test_pairs_path)
+    test_pairs = load_pairs_jsonl_gz(test_pairs_path)
 
-    args = p.parse_args()
-    setup_logger()
+    products = sorted({p["product"] for p in test_pairs if p.get("product")})
+    if not products:
+        raise RuntimeError("No test products found in test_pairs.")
 
-    repo_root = _repo_root()
-    artifacts_dir = repo_root / "results" / "artifacts" / args.run_id
-    if not artifacts_dir.exists():
-        raise SystemExit(f"Artifacts dir not found: {artifacts_dir} (did step1 run?)")
+    rng = random.Random(args.seed)
+    rng.shuffle(products)
+    targets = products[: min(args.targets_n, len(products))]
 
-    model, templates, meta = _load_artifacts(artifacts_dir)
-
-    recs = load_reaction_records_csv(
-        csv_path=args.csv,
-        rxn_col=args.rxn_col,
-        limit=args.train_limit,
-        shuffle=True,
-        seed=args.seed,
-    )
-
-    buyables: Set[str] = load_askcos_buyables_jsonl_gz(args.buyables)
-
-    targets = sample_targets_from_products(recs, n=args.targets_n, seed=args.seed)
+    print("Loading buyables (cached if present)...")
+    buyables = load_buyables_cached(args.buyables_jsonl_gz, args.buyables_cache_txt_gz)
+    print("Buyables loaded:", len(buyables))
 
     cfg = SearchConfig(
         max_depth=args.max_depth,
@@ -100,16 +72,22 @@ def main() -> None:
         time_limit_s=args.time_limit_s,
     )
 
-    report = audit_targets(targets, model, templates, buyables, config=cfg)
+    report = audit_targets(
+        targets=targets,
+        model=model,
+        templates=templates,
+        buyables=buyables,
+        config=cfg,
+    )
 
-    outdir = repo_root / "results" / "audits" / args.run_id
-    outdir.mkdir(parents=True, exist_ok=True)
-    outpath = outdir / "audit.json"
-    save_json(str(outpath), report)
+    out_dir = os.path.join(run_dir, "audit")
+    os.makedirs(out_dir, exist_ok=True)
+    ts = datetime.now().strftime("%y%m%d-%H%M%S")
+    out_path = os.path.join(out_dir, f"audit_{ts}.json")
+    save_json(out_path, report)
 
-    print("Saved:", outpath)
+    print("Saved audit:", out_path)
     print("Success:", report["n_solved"], "/", report["n_targets"], "=", report["success_rate"])
-
 
 if __name__ == "__main__":
     main()

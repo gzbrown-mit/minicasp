@@ -1,108 +1,101 @@
-# =========================
-# FILE: minicasp/scripts/step1_train.py
-# =========================
-from __future__ import annotations
-
 import argparse
-import json
 import os
-from dataclasses import asdict
-from datetime import datetime
-from pathlib import Path
+import json
+import shutil
 
 from minicasp.utils import (
-    MiniCaspArtifacts,
-    build_and_train_from_csv,
-    save_json,
-    setup_logger,
+    load_pairs_jsonl_gz,
+    save_pairs_jsonl_gz,
+    ordered_group_split,
+    random_group_split,
+    train_template_model,
+    save_model_joblib,
 )
 
+def main():
+    ap = argparse.ArgumentParser()
 
-def _repo_root() -> Path:
-    # .../minicasp/scripts/step1_train.py -> repo root is parents[2]
-    return Path(__file__).resolve().parents[2]
+    ap.add_argument("--pairs_cache", required=True)
+    ap.add_argument("--templates_cache", required=True)
+    ap.add_argument("--run_dir", required=True)
 
+    ap.add_argument("--test_size", type=float, default=0.2)
+    ap.add_argument("--split_mode", type=str, default="ordered_group",
+                    choices=["ordered_group", "random_group"])
+    ap.add_argument("--split_seed", type=int, default=0)
 
-def _artifacts_dir(repo_root: Path, run_id: str) -> Path:
-    return repo_root / "results" / "artifacts" / run_id
+    # model seed (SGD randomness)
+    ap.add_argument("--model_seed", type=int, default=0)
 
+    # model hyperparams (optional knobs)
+    ap.add_argument("--fp_radius", type=int, default=2)
+    ap.add_argument("--n_bits", type=int, default=2048)
+    ap.add_argument("--max_iter", type=int, default=25)
 
-def _save_artifacts(outdir: Path, artifacts: MiniCaspArtifacts) -> None:
-    outdir.mkdir(parents=True, exist_ok=True)
+    args = ap.parse_args()
+    os.makedirs(args.run_dir, exist_ok=True)
 
-    # Templates
-    templates_path = outdir / "templates.json"
-    save_json(
-        str(templates_path),
-        {
-            "templates": [asdict(t) for t in artifacts.templates],
-            "reactions_used": artifacts.reactions_used,
-        },
+    # Copy templates cache into the run directory so step2 only needs run_dir
+    templates_out = os.path.join(args.run_dir, "templates.json.gz")
+    shutil.copyfile(args.templates_cache, templates_out)
+
+    pairs = load_pairs_jsonl_gz(args.pairs_cache)
+    X = [p["product"] for p in pairs]
+    y = [int(p["template_id"]) for p in pairs]
+    groups = X  # group-by-product to prevent leakage
+
+    if args.split_mode == "ordered_group":
+        (Xtr, ytr), (Xte, yte), meta = ordered_group_split(
+            X, y, groups, test_size=args.test_size
+        )
+    else:
+        (Xtr, ytr), (Xte, yte), meta = random_group_split(
+            X, y, groups, test_size=args.test_size, seed=args.split_seed
+        )
+
+    meta.update({
+        "split_mode": args.split_mode,
+        "test_size": args.test_size,
+        "split_seed": args.split_seed,
+        "model_seed": args.model_seed,
+        "fp_radius": args.fp_radius,
+        "n_bits": args.n_bits,
+        "max_iter": args.max_iter,
+        "n_pairs_total": len(X),
+        "n_pairs_train": len(Xtr),
+        "n_pairs_test": len(Xte),
+    })
+
+    model = train_template_model(
+        Xtr, ytr,
+        fp_radius=args.fp_radius,
+        n_bits=args.n_bits,
+        random_state=args.model_seed,
+        max_iter=args.max_iter,
     )
 
-    # Model (pickle via joblib)
-    import joblib  # type: ignore
+    model_path = os.path.join(args.run_dir, "model.joblib")
+    save_model_joblib(model_path, model)
 
-    model_path = outdir / "template_model.joblib"
-    joblib.dump(
-        {
-            "clf": artifacts.model.clf,
-            "label_encoder": artifacts.model.label_encoder,
-            "n_bits": artifacts.model.n_bits,
-            "fp_radius": artifacts.model.fp_radius,
-        },
-        model_path,
-    )
+    # Save train/test pairs for step2
+    train_pairs = [{"product": p, "template_id": int(t)} for p, t in zip(Xtr, ytr)]
+    test_pairs  = [{"product": p, "template_id": int(t)} for p, t in zip(Xte, yte)]
+    save_pairs_jsonl_gz(os.path.join(args.run_dir, "train_pairs.jsonl.gz"), train_pairs)
+    save_pairs_jsonl_gz(os.path.join(args.run_dir, "test_pairs.jsonl.gz"), test_pairs)
 
-    # Metadata for step2 convenience
-    meta = {
-        "templates_path": str(templates_path),
-        "model_path": str(model_path),
-        "reactions_used": artifacts.reactions_used,
-    }
-    save_json(str(outdir / "meta.json"), meta)
+    # Save test targets (unique products)
+    with open(os.path.join(args.run_dir, "test_targets.txt"), "w") as f:
+        for smi in sorted(set(Xte)):
+            f.write(smi + "\n")
 
+    with open(os.path.join(args.run_dir, "split_meta.json"), "w") as f:
+        json.dump(meta, f, indent=2)
 
-def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--csv", required=True, help="CSV with USPTO reactions")
-    p.add_argument("--rxn_col", default="rxn_smiles")
-    p.add_argument("--train_limit", type=int, default=50_000)
-    p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--template_radius", type=int, default=1)
-    p.add_argument("--template_min_count", type=int, default=5)
-    p.add_argument(
-        "--run_id",
-        default="",
-        help="Optional run id; default is timestamp-based",
-    )
-    args = p.parse_args()
-
-    setup_logger()
-
-    repo_root = _repo_root()
-    run_id = args.run_id or datetime.now().strftime("%y%m%d-%H%M%S")
-    outdir = _artifacts_dir(repo_root, run_id)
-
-    print("REPO_ROOT:", repo_root)
-    print("RUN_ID:", run_id)
-    print("ARTIFACTS_DIR:", outdir)
-
-    artifacts = build_and_train_from_csv(
-        csv_path=args.csv,
-        rxn_col=args.rxn_col,
-        limit=args.train_limit,
-        shuffle=True,
-        seed=args.seed,
-        template_radius=args.template_radius,
-        template_min_count=args.template_min_count,
-    )
-
-    _save_artifacts(outdir, artifacts)
-    print("Saved artifacts to:", outdir)
-
+    print("Saved run_dir:", args.run_dir)
+    print("Model:", model_path)
+    print("Templates:", templates_out)
+    print("Split mode:", args.split_mode)
+    print("Train pairs:", len(Xtr), "Test pairs:", len(Xte))
 
 if __name__ == "__main__":
     main()
-
-
