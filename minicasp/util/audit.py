@@ -30,11 +30,34 @@ def audit_targets(
     results = []
     for i, t in enumerate(targets):
         route = plan_route_best_first(t, model, templates_by_id, buyables, config=config)
+
+        step_dicts = []
+        for s in route.steps:
+            d = {
+                "product": s.product,
+                "precursors": list(s.precursors),
+                "template_id": int(s.template_id),
+            }
+
+            # Support both old Step(template_score=...) and new Step(score=...)
+            if hasattr(s, "template_score"):
+                d["template_score"] = getattr(s, "template_score")
+            elif hasattr(s, "score"):
+                d["template_score"] = getattr(s, "score")
+
+            # Optional: if you kept per-step fail_reason
+            if hasattr(s, "fail_reason") and getattr(s, "fail_reason"):
+                d["fail_reason"] = getattr(s, "fail_reason")
+
+            step_dicts.append(d)
+
         results.append({
             "idx": i,
             "target": t,
             "solved": route.solved,
+            "solved_via": route.solved_via,   # <-- add
             "score": route.score,
+            "fail_reason": route.fail_reason,
             "depth": len(route.steps),
             "open_mols": sorted(route.open_mols),
             "steps": [

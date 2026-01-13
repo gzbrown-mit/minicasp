@@ -55,3 +55,10 @@ def smiles_to_morgan_fp(
     arr = np.zeros((n_bits,), dtype=np.float32)
     DataStructs.ConvertToNumpyArray(fp, arr)
     return arr
+def strip_atom_maps(smiles: str) -> str:
+    m = Chem.MolFromSmiles(smiles)
+    if not m:
+        return smiles
+    for a in m.GetAtoms():
+        a.SetAtomMapNum(0)
+    return Chem.MolToSmiles(m, canonical=True)

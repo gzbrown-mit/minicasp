@@ -85,6 +85,9 @@ def main():
         "n_pairs_total": len(X),
         "n_pairs_train": len(Xtr),
         "n_pairs_test": len(Xte),
+        "model_type": args.model_type,
+        "mlp_hidden": list(hidden),
+        "mlp_epochs": args.mlp_epochs,
     })
 
     model = train_template_model(

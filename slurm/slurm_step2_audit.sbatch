@@ -24,13 +24,13 @@ EXPECT_MODEL_TYPE=""
 
 python -m minicasp.scripts.step2_audit \
   --run_dir "$RUN_DIR" \
-  --targets_n 100 \
+  --targets_n 200 \
   --seed 0 \
-  --max_depth 6 \
-  --max_expansions 300 \
-  --topk_templates 25 \
+  --max_depth 8 \
+  --max_expansions 800 \
+  --topk_templates 100 \
   --max_outcomes_per_template 25 \
-  --time_limit_s 10.0 \
+  --time_limit_s 30.0 \
   --buyables_jsonl_gz /home/gzbrown/minicasp/data/buyables/buyables.jsonl.gz \
   --buyables_cache_txt_gz /home/gzbrown/minicasp/data/buyables/buyables_smiles.txt.gz \
   --expect_model_type "$EXPECT_MODEL_TYPE"

@@ -9,6 +9,7 @@ from .util.chem import (
     normalize_mol_set,
     smiles_to_morgan_fp,
     canonical_product_key,
+    strip_atom_maps,
 )
 
 from .util.data import ReactionRecord, load_reaction_records_csv

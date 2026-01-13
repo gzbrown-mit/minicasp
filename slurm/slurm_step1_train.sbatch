@@ -24,7 +24,7 @@ TEMPLATES="/home/gzbrown/minicasp/results/templates/templates_r1_min5.json.gz"
 PAIRS="/home/gzbrown/minicasp/results/templates/pairs_r1_min5.jsonl.gz"
 
 # INPUT MODEL TYPE GISELLE:
-MODEL_TYPE="mlp_sklearn"          # sgd | mlp | mlp_torch | mlp_sklearn
+MODEL_TYPE="sgd"          # sgd | mlp | mlp_torch | mlp_sklearn
 SPLIT_TYPE="random_group" # ordered_group | random_group
 
 echo "Using MODEL_TYPE=$MODEL_TYPE"
@@ -40,7 +40,7 @@ python -m minicasp.scripts.step1_train \
   --model_seed 0 \
   --fp_radius 2 \
   --n_bits 2048 \
-  --max_iter 25 \
+  --max_iter 200 \
   --model_type "$MODEL_TYPE" \
   --mlp_hidden "1024,1024" \
   --mlp_epochs 8 \

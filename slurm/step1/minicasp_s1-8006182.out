@@ -1,2 +1,9 @@
 Using MODEL_TYPE=mlp_sklearn
 Using SPLIT_TYPE=random_group
+Saved run_dir: /home/gzbrown/minicasp/results/runs/260113-124528
+Model: /home/gzbrown/minicasp/results/runs/260113-124528/model.joblib
+Templates: /home/gzbrown/minicasp/results/runs/260113-124528/templates.json.gz
+Split mode: random_group
+Model type: mlp_sklearn
+Train pairs: 22042 Test pairs: 5494
+STEP1_DONE RUN_DIR=/home/gzbrown/minicasp/results/runs/260113-124528 MODEL_TYPE=mlp_sklearn

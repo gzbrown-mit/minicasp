@@ -1,11 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Optional
 import heapq, math, time
 
 from .chem import canonicalize_smiles, normalize_mol_set
 from .model import TemplateModel, predict_topk_templates
 from .templates import require_rdchiral, rdchiralReaction, rdchiralReactants, rdchiralRun
+
 
 @dataclass(frozen=True)
 class Step:
@@ -14,12 +15,16 @@ class Step:
     template_id: int
     template_score: float
 
+
 @dataclass
 class Route:
     solved: bool
     steps: List[Step]
     open_mols: Set[str]
-    score: float
+    score: Optional[float]
+    fail_reason: str = ""     # <-- add this
+    solved_via: str = ""      # <-- "buyable" | "search"
+
 
 @dataclass(frozen=True)
 class SearchConfig:
@@ -29,6 +34,7 @@ class SearchConfig:
     max_outcomes_per_template: int = 25
     time_limit_s: float = 30.0
     depth_penalty: float = 0.2
+
 
 def apply_retro_template(product_smiles: str, rxn_smarts: str, max_outcomes: int = 50) -> List[Tuple[str, ...]]:
     require_rdchiral()
@@ -52,8 +58,10 @@ def apply_retro_template(product_smiles: str, rxn_smarts: str, max_outcomes: int
             uniq.append(pset)
     return uniq
 
+
 def _is_solved(mols: Set[str], buyables: Set[str]) -> bool:
     return all(m in buyables for m in mols)
+
 
 def plan_route_best_first(
     target_smiles: str,
@@ -67,36 +75,71 @@ def plan_route_best_first(
     start_time = time.time()
     target = canonicalize_smiles(target_smiles)
 
+    # Trivial solution: already buyable
     if target in buyables:
-        return Route(solved=True, steps=[], open_mols=set(), score=0.0)
+        return Route(
+            solved=True,
+            steps=[],
+            open_mols=set(),
+            score=0.0,
+            fail_reason="",
+            solved_via="buyable",
+        )
 
     tie = 0
     start_open = frozenset([target])
-    pq = [(0.0, 0, tie, start_open, tuple())]
+    pq: List[Tuple[float, int, int, frozenset, Tuple[Step, ...]]] = []
+    heapq.heappush(pq, (0.0, 0, tie, start_open, tuple()))
     visited = {start_open}
     expansions = 0
 
+    # best-so-far for failure return
+    best_score = float("inf")
+    best_open_fs = start_open
+    best_steps: Tuple[Step, ...] = tuple()
+    fail_reason = "no_expansion"
+
     while pq:
         if time.time() - start_time > config.time_limit_s:
+            fail_reason = "time_limit"
+            break
+        if expansions >= config.max_expansions:
+            fail_reason = "max_expansions"
             break
 
         score, depth, _, open_fs, steps = heapq.heappop(pq)
+
+        # update best-so-far
+        if score < best_score:
+            best_score = score
+            best_open_fs = open_fs
+            best_steps = steps
+
         open_set = set(open_fs)
 
         if _is_solved(open_set, buyables):
-            return Route(solved=True, steps=list(steps), open_mols=set(), score=score)
+            return Route(
+                solved=True,
+                steps=list(steps),
+                open_mols=set(),
+                score=score,
+                fail_reason="",
+                solved_via="search",
+            )
 
         if depth >= config.max_depth:
+            fail_reason = "max_depth"
             continue
-        if expansions >= config.max_expansions:
-            break
 
         to_expand = max((m for m in open_set if m not in buyables), key=len, default=None)
         if to_expand is None:
+            fail_reason = "no_unsolved"
             continue
 
         top_templates = predict_topk_templates(model, to_expand, k=config.topk_templates)
         expansions += 1
+
+        any_child = False
 
         for template_id, prob in top_templates:
             rxn_smarts = templates_by_id.get(template_id)
@@ -110,6 +153,8 @@ def plan_route_best_first(
             )
             if not prec_sets:
                 continue
+
+            any_child = True
 
             for precursors in prec_sets:
                 new_open = set(open_set)
@@ -125,10 +170,20 @@ def plan_route_best_first(
 
                 prob_clamped = max(prob, 1e-9)
                 new_score = score + (-math.log(prob_clamped)) + config.depth_penalty
-                new_steps = steps + (Step(to_expand, precursors, template_id, prob),)
+                new_steps = steps + (Step(to_expand, precursors, template_id, float(prob)),)
 
                 tie += 1
                 heapq.heappush(pq, (new_score, depth + 1, tie, new_open_fs, new_steps))
 
-    best = min(pq, default=(float("inf"), 0, 0, start_open, tuple()), key=lambda x: x[0])
-    return Route(solved=False, steps=list(best[4]), open_mols=set(best[3]), score=float(best[0]))
+        if not any_child:
+            fail_reason = "no_applicable_templates"
+
+    # Failure return (no Infinity, still returns best explored)
+    return Route(
+        solved=False,
+        steps=list(best_steps),
+        open_mols=set(best_open_fs),
+        score=None if best_score == float("inf") else float(best_score),
+        fail_reason=fail_reason,
+        solved_via="",
+    )

@@ -1,5 +1,6 @@
 import argparse
 import os
+import json
 from datetime import datetime
 import random
 
@@ -11,15 +12,8 @@ from minicasp.utils import (
     audit_targets,
     save_json,
     SearchConfig,
+    strip_atom_maps,
 )
-
-def _infer_model_type(model):
-    # best-effort: support either an attribute or dict payloads
-    if hasattr(model, "model_type"):
-        return getattr(model, "model_type")
-    if isinstance(model, dict) and "model_type" in model:
-        return model["model_type"]
-    return "unknown"
 
 def main():
     ap = argparse.ArgumentParser()
@@ -29,7 +23,7 @@ def main():
     ap.add_argument("--targets_n", type=int, default=100)
     ap.add_argument("--seed", type=int, default=0)
 
-    # Optional: sanity-check model type
+    # Optional: sanity-check model type (read from split_meta.json)
     ap.add_argument("--expect_model_type", default="",
                     choices=["", "sgd", "mlp", "mlp_torch", "mlp_sklearn"])
 
@@ -40,7 +34,7 @@ def main():
     ap.add_argument("--max_outcomes_per_template", type=int, default=25)
     ap.add_argument("--time_limit_s", type=float, default=10.0)
 
-    # Buyables (use your copied files in minicasp)
+    # Buyables
     ap.add_argument("--buyables_jsonl_gz", default="/home/gzbrown/minicasp/data/buyables/buyables.jsonl.gz")
     ap.add_argument("--buyables_cache_txt_gz", default="/home/gzbrown/minicasp/data/buyables/buyables_smiles.txt.gz")
 
@@ -50,19 +44,25 @@ def main():
     model_path = os.path.join(run_dir, "model.joblib")
     templates_path = os.path.join(run_dir, "templates.json.gz")
     test_pairs_path = os.path.join(run_dir, "test_pairs.jsonl.gz")
+    split_meta_path = os.path.join(run_dir, "split_meta.json")
 
     for p in (model_path, templates_path, test_pairs_path):
         if not os.path.exists(p):
             raise FileNotFoundError(f"Missing required file: {p}")
 
+    # Read model_type from split_meta.json (preferred)
+    model_type = "unknown"
+    if os.path.exists(split_meta_path):
+        with open(split_meta_path, "r") as f:
+            model_type = json.load(f).get("model_type", "unknown")
+
+    print("Run model_type (from split_meta.json):", model_type)
+
+    if args.expect_model_type and model_type != "unknown" and model_type != args.expect_model_type:
+        raise RuntimeError(f"Model type mismatch: expected {args.expect_model_type}, got {model_type}")
+
     print("Loading model:", model_path)
     model = load_model_joblib(model_path)
-
-    loaded_type = _infer_model_type(model)
-    print("Loaded model_type:", loaded_type)
-
-    if args.expect_model_type and loaded_type != "unknown" and loaded_type != args.expect_model_type:
-        raise RuntimeError(f"Model type mismatch: expected {args.expect_model_type}, got {loaded_type}")
 
     print("Loading templates:", templates_path)
     templates = load_templates_cache(templates_path)
@@ -70,7 +70,8 @@ def main():
     print("Loading test pairs:", test_pairs_path)
     test_pairs = load_pairs_jsonl_gz(test_pairs_path)
 
-    products = sorted({p["product"] for p in test_pairs if p.get("product")})
+    # IMPORTANT: strip atom-maps so targets match buyables + search canonicalization
+    products = sorted({strip_atom_maps(p["product"]) for p in test_pairs if p.get("product")})
     if not products:
         raise RuntimeError("No test products found in test_pairs.")
 
@@ -90,7 +91,7 @@ def main():
         time_limit_s=args.time_limit_s,
     )
 
-    report = audit_targets(
+    report_core = audit_targets(
         targets=targets,
         model=model,
         templates=templates,
@@ -98,12 +99,11 @@ def main():
         config=cfg,
     )
 
-    # attach meta
     report = {
         "meta": {
             "run_dir": run_dir,
             "model_path": model_path,
-            "model_type": loaded_type,
+            "model_type": model_type,
             "expect_model_type": args.expect_model_type,
             "templates_path": templates_path,
             "test_pairs_path": test_pairs_path,
@@ -122,7 +122,7 @@ def main():
                 "n_buyables": len(buyables),
             },
         },
-        **report,
+        **report_core,
     }
 
     out_dir = os.path.join(run_dir, "audit")
