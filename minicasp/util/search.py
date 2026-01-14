@@ -1,7 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Set, Tuple, Optional
-import heapq, math, time
+import heapq
+import logging
+import math
+import time
 
 from .chem import canonicalize_smiles, normalize_mol_set
 from .model import TemplateModel, predict_topk_templates
@@ -38,11 +41,17 @@ class SearchConfig:
 
 def apply_retro_template(product_smiles: str, rxn_smarts: str, max_outcomes: int = 50) -> List[Tuple[str, ...]]:
     require_rdchiral()
+    logger = logging.getLogger(__name__)
     try:
         rxn = rdchiralReaction(rxn_smarts)
         reactants = rdchiralReactants(product_smiles)
         outcomes = rdchiralRun(rxn, reactants, combine_enantiomers=False)
     except Exception:
+        logger.debug(
+            "RDChiral failed to apply template to product_smiles=%s",
+            product_smiles,
+            exc_info=True,
+        )
         return []
 
     precursors: List[Tuple[str, ...]] = []
@@ -71,6 +80,7 @@ def plan_route_best_first(
     config: SearchConfig = SearchConfig(),
 ) -> Route:
     require_rdchiral()
+    logger = logging.getLogger(__name__)
 
     start_time = time.time()
     target = canonicalize_smiles(target_smiles)
@@ -140,12 +150,15 @@ def plan_route_best_first(
         expansions += 1
 
         any_child = False
+        templates_tried = 0
+        templates_with_outcomes = 0
 
         for template_id, prob in top_templates:
             rxn_smarts = templates_by_id.get(template_id)
             if not rxn_smarts:
                 continue
 
+            templates_tried += 1
             prec_sets = apply_retro_template(
                 product_smiles=to_expand,
                 rxn_smarts=rxn_smarts,
@@ -155,6 +168,7 @@ def plan_route_best_first(
                 continue
 
             any_child = True
+            templates_with_outcomes += 1
 
             for precursors in prec_sets:
                 new_open = set(open_set)
@@ -177,6 +191,23 @@ def plan_route_best_first(
 
         if not any_child:
             fail_reason = "no_applicable_templates"
+            logger.info(
+                "No applicable templates for target=%s depth=%d tried=%d predicted=%d with_outcomes=%d",
+                to_expand,
+                depth,
+                templates_tried,
+                len(top_templates),
+                templates_with_outcomes,
+            )
+        else:
+            logger.debug(
+                "Expanded target=%s depth=%d tried=%d predicted=%d with_outcomes=%d",
+                to_expand,
+                depth,
+                templates_tried,
+                len(top_templates),
+                templates_with_outcomes,
+            )
 
     # Failure return (no Infinity, still returns best explored)
     return Route(

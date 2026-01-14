@@ -21,8 +21,8 @@ def main():
     ap.add_argument("--run_dir", required=True,
                     help="e.g. /home/gzbrown/minicasp/results/runs/YYMMDD-HHMMSS")
     ap.add_argument("--targets_n", type=int, default=100)
-    ap.add_argument("--seed", type=int, default=0)
-
+    ap.add_argument("--seed", type=int, default=None,
+                    help="Random seed for target selection. Omit for non-deterministic runs.")
     # Optional: sanity-check model type (read from split_meta.json)
     ap.add_argument("--expect_model_type", default="",
                     choices=["", "sgd", "mlp", "mlp_torch", "mlp_sklearn"])
@@ -75,7 +75,10 @@ def main():
     if not products:
         raise RuntimeError("No test products found in test_pairs.")
 
-    rng = random.Random(args.seed)
+    seed_value = args.seed
+    if seed_value is None:
+        seed_value = random.SystemRandom().randint(0, 2**32 - 1)
+    rng = random.Random(seed_value)
     rng.shuffle(products)
     targets = products[: min(args.targets_n, len(products))]
 
@@ -108,7 +111,7 @@ def main():
             "templates_path": templates_path,
             "test_pairs_path": test_pairs_path,
             "targets_n": args.targets_n,
-            "seed": args.seed,
+            "seed": seed_value,
             "search": {
                 "max_depth": args.max_depth,
                 "max_expansions": args.max_expansions,

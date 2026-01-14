@@ -71,10 +71,16 @@ def audit_targets(
             ],
         })
 
-    n_solved = sum(1 for r in results if r["solved"])
+    n_solved = sum(1 for r in results if r["solved"] and r["depth"] > 0)
+
+
+
     return {
         "n_targets": len(targets),
+
+        # original metric (counts buyables as solved)
         "n_solved": n_solved,
         "success_rate": (n_solved / max(1, len(targets))),
+
         "results": results,
     }
