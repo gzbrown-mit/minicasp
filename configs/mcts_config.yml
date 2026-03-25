@@ -1,0 +1,33 @@
+# MiniCASP MCTS Configuration
+#
+# Environment variables (set before running, or replace with absolute paths):
+#   MINICASP_MODEL     - path to expansion policy model (.onnx)
+#   MINICASP_TEMPLATES - path to reaction templates (.csv.gz or .hdf5)
+#   MINICASP_STOCK     - path to stock file (.hdf5)
+#
+# Example:
+#   export MINICASP_MODEL=minicasp/data/models/uspto_model.onnx
+#   export MINICASP_TEMPLATES=minicasp/data/models/uspto_templates.csv.gz
+#   export MINICASP_STOCK=minicasp/data/models/zinc_stock.hdf5
+
+search:
+  algorithm: mcts
+  max_transforms: 6
+  iteration_limit: 100
+  time_limit: 120
+  return_first: false
+  exclude_target_from_stock: true
+
+expansion:
+  full_uspto:
+    type: template-based
+    model: ${MINICASP_MODEL}
+    template: ${MINICASP_TEMPLATES}
+    cutoff_cumulative: 0.995
+    cutoff_number: 50
+    use_rdchiral: true
+
+stock:
+  zinc:
+    type: inchiset
+    path: ${MINICASP_STOCK}

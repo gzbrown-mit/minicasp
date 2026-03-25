@@ -1,5 +1,18 @@
+# Data
 data/
 results/
+*.hdf5
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Slurm logs
 slurm/step0
 slurm/step1
 slurm/step2
+
+# Environment
+.env

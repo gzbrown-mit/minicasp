@@ -1,0 +1,31 @@
+name: minicasp
+channels:
+  - conda-forge
+channel_priority: strict
+dependencies:
+  - python=3.10
+  - libstdcxx-ng>=12
+  - libgcc-ng>=12
+  - pip
+  - numpy
+  - pandas
+  - networkx
+  - rdkit
+  - pyyaml
+  - requests
+  - pillow
+  - jinja2
+  - scikit-learn
+  - psutil
+  - pymongo
+  - onnxruntime
+  - grpcio
+  - protobuf
+  - tensorflow
+  - pip:
+      - reaction-utils
+      - paretoset
+      - rdchiral
+      - route-distances
+      - molbloom
+      - tensorflow-serving-api
