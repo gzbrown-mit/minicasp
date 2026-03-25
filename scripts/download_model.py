@@ -38,7 +38,7 @@ FILES = {
     "uspto_filter_model.onnx": {
         "url": "https://zenodo.org/record/7797465/files/uspto_filter_model.onnx",
         "description": "USPTO filter policy model (optional)",
-        "required": False,
+        "required": True,
     },
 }
 

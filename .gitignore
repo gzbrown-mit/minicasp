@@ -2,6 +2,11 @@
 data/
 results/
 *.hdf5
+MTemplates/
+template_curation/output*/
+
+# Local OS files
+.DS_Store
 
 # Python
 __pycache__/
